@@ -1,0 +1,193 @@
+html {
+  background: #000 !important;
+}
+body {
+  background: transparent !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+#root {
+  background: transparent !important;
+  min-height: 100vh;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 228 66% 10%;
+    --foreground: 0 0% 100%;
+
+    --card: 224 28% 10%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 224 28% 10%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 224 28% 10%;
+    --secondary-foreground: 220 14% 90%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 218 11% 65%;
+
+    --accent: 213 94% 68%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 220 13% 26%;
+    --input: 217 33% 17%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 224 28% 10%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 213 94% 68%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 13% 26%;
+    --sidebar-ring: 217 91% 60%;
+
+    /* Custom design tokens */
+    --gradient-hero: linear-gradient(135deg, hsl(224, 76%, 40%) 0%, hsl(217, 91%, 60%) 50%, hsl(213, 94%, 68%) 100%);
+    --gradient-card: linear-gradient(to bottom right, hsl(224, 28%, 10%) 0%, hsl(217, 33%, 17%) 100%);
+    --gradient-accent: linear-gradient(90deg, hsl(217, 91%, 60%) 0%, hsl(213, 94%, 68%) 100%);
+    --shadow-medical: 0 4px 24px -4px hsla(217, 91%, 60%, 0.1);
+    --shadow-glow: 0 0 20px hsla(217, 91%, 60%, 0.3);
+  }
+
+  .dark {
+    --background: 228 66% 10%;
+    --foreground: 0 0% 100%;
+    --card: 224 28% 10%;
+    --card-foreground: 0 0% 100%;
+    --popover: 224 28% 10%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 224 28% 10%;
+    --secondary-foreground: 220 14% 90%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 218 11% 65%;
+    --accent: 213 94% 68%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 26%;
+    --input: 217 33% 17%;
+    --ring: 217 91% 60%;
+    --sidebar-background: 224 28% 10%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 13% 26%;
+    --sidebar-ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply text-foreground font-sans antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-black/40 backdrop-blur-xl border border-border;
+  }
+  .glass-dark {
+    @apply bg-black/30 backdrop-blur-xl border border-white/10;
+  }
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+  .gradient-card {
+    background: var(--gradient-card);
+  }
+  .gradient-accent {
+    background: var(--gradient-accent);
+  }
+  .gradient-success {
+    background: linear-gradient(135deg, hsl(160, 84%, 39%) 0%, hsl(160, 84%, 29%) 100%);
+  }
+  .shadow-medical {
+    box-shadow: var(--shadow-medical);
+  }
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-hero);
+  }
+  .card-medical {
+    background: linear-gradient(to bottom right, hsla(224, 28%, 10%, 0.8) 0%, hsla(217, 33%, 17%, 0.8) 100%);
+    backdrop-filter: blur(8px);
+    border: 1px solid hsl(220, 13%, 26%);
+    box-shadow: 0 4px 20px hsla(217, 91%, 60%, 0.06);
+    @apply rounded-2xl p-6 transition-all duration-300;
+  }
+  .card-medical:hover {
+    border-color: hsl(217, 91%, 60%);
+    box-shadow: 0 8px 30px hsla(217, 91%, 60%, 0.12);
+    @apply -translate-y-1;
+  }
+  .btn-medical {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold transition-all duration-200;
+  }
+  .btn-medical:hover {
+    @apply scale-105;
+  }
+  .btn-medical:active {
+    @apply scale-95;
+  }
+  .input-medical {
+    @apply w-full rounded-lg border border-border bg-input px-4 py-3 text-sm text-foreground transition-all duration-200 outline-none placeholder:text-muted-foreground;
+  }
+  .input-medical:focus {
+    border-color: hsl(217, 91%, 60%);
+    box-shadow: 0 0 0 3px hsla(217, 91%, 60%, 0.15);
+  }
+  .mono {
+    font-family: 'IBM Plex Mono', monospace;
+  }
+}
+
+@layer utilities {
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}
