@@ -352,6 +352,30 @@ function HowItWorksSection() {
   );
 }
 
+function StatCard({ stat, index, isVisible }: { stat: typeof stats[number]; index: number; isVisible: boolean }) {
+  const count = useCountUp(stat.value, 2000, isVisible);
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.5 }}
+      whileInView={{ opacity: 1, scale: 1 }}
+      viewport={{ once: true }}
+      transition={{ delay: index * 0.15, type: "spring", stiffness: 200 }}
+      className="text-center"
+    >
+      <motion.div
+        animate={isVisible ? { scale: [1, 1.2, 1] } : {}}
+        transition={{ duration: 0.5, delay: index * 0.15 }}
+      >
+        <stat.icon className="h-8 w-8 text-primary-foreground/60 mx-auto mb-3" />
+      </motion.div>
+      <div className="mono text-4xl sm:text-5xl font-bold text-primary-foreground">
+        {count.toLocaleString()}{stat.suffix}
+      </div>
+      <div className="text-primary-foreground/70 text-sm mt-2">{stat.label}</div>
+    </motion.div>
+  );
+}
+
 function StatsSection() {
   const { ref, isVisible } = useScrollAnimation();
   return (
@@ -368,30 +392,9 @@ function StatsSection() {
         <h2 className="text-3xl font-heading font-bold text-primary-foreground">By The Numbers</h2>
       </motion.div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-        {stats.map((stat, i) => {
-          const count = useCountUp(stat.value, 2000, isVisible);
-          return (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, scale: 0.5 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.15, type: "spring", stiffness: 200 }}
-              className="text-center"
-            >
-              <motion.div
-                animate={isVisible ? { scale: [1, 1.2, 1] } : {}}
-                transition={{ duration: 0.5, delay: i * 0.15 }}
-              >
-                <stat.icon className="h-8 w-8 text-primary-foreground/60 mx-auto mb-3" />
-              </motion.div>
-              <div className="mono text-4xl sm:text-5xl font-bold text-primary-foreground">
-                {count.toLocaleString()}{stat.suffix}
-              </div>
-              <div className="text-primary-foreground/70 text-sm mt-2">{stat.label}</div>
-            </motion.div>
-          );
-        })}
+        {stats.map((stat, i) => (
+          <StatCard key={stat.label} stat={stat} index={i} isVisible={isVisible} />
+        ))}
       </div>
       </div>
     </section>

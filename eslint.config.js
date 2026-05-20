@@ -23,4 +23,13 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  {
+    // shadcn/ui generated files intentionally export variant functions alongside
+    // components (e.g. buttonVariants, toggleVariants). The react-refresh rule
+    // is not applicable to this generated component-library layer.
+    files: ["src/components/ui/**/*.{ts,tsx}"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+    },
+  },
 );

@@ -184,21 +184,21 @@ export default function UploadAnalyzePage() {
         setResult(prediction);
         setTimeout(() => setStep("results"), 400);
 
-      } catch (err: any) {
+      } catch (err: unknown) {
         clearTimeout(timeoutId);
-        
-        if (err.name === "AbortError") {
+        const e = err instanceof Error ? err : null;
+        if (e?.name === "AbortError") {
           setError("Request timed out. The server may be waking up — please try again in 30 seconds.");
-        } else if (!navigator.onLine || err.message.toLowerCase().includes("fetch")) {
+        } else if (!navigator.onLine || (e?.message ?? "").toLowerCase().includes("fetch")) {
           setError("Cannot connect to the analysis server. Please check your connection and try again.");
         } else {
-          setError(err.message || "An unexpected error occurred.");
+          setError(e?.message ?? "An unexpected error occurred.");
         }
         setStep("upload");
       }
 
-    } catch (err: any) {
-      setError(err.message ?? "Something went wrong. Please try again.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setStep("upload");
     }
   };

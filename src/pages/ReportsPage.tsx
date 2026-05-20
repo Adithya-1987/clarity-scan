@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Download, FileText, Eye, Loader2, Inbox } from "lucide-react";
+import { Download, FileText, Eye, Loader2, Inbox, Upload } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -43,6 +44,7 @@ const staggerItem = {
 
 export default function ReportsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [scans, setScans] = useState<Scan[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -95,7 +97,15 @@ export default function ReportsPage() {
         >
           <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
           <h2 className="text-lg font-heading font-semibold text-foreground mb-1">No scans yet</h2>
-          <p className="text-muted-foreground text-sm">Upload your first MRI scan to see results here.</p>
+          <p className="text-muted-foreground text-sm mb-4">Upload your first MRI scan to see results here.</p>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => navigate("/dashboard/upload")}
+            className="btn-medical gradient-hero text-primary-foreground text-sm"
+          >
+            <Upload className="h-4 w-4" /> Upload Your First Scan
+          </motion.button>
         </motion.div>
       ) : (
         <motion.div
