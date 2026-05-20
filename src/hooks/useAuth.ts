@@ -40,6 +40,13 @@ export function useAuth() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Safety net: if the auth listener never fires (network issue, SDK
+  // initialisation race), force-unblock the UI after 3 seconds.
+  useEffect(() => {
+    const timeout = setTimeout(() => setLoading(false), 3000);
+    return () => clearTimeout(timeout);
+  }, []);
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -59,16 +66,26 @@ export function useAuth() {
           return;
         }
 
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await upsertProfile(session.user);
-          const p = await fetchProfile(session.user.id);
-          setProfile(p);
-        } else {
-          setProfile(null);
+        try {
+          setSession(session);
+          setUser(session?.user ?? null);
+          if (session?.user) {
+            await upsertProfile(session.user);
+            const p = await fetchProfile(session.user.id);
+            setProfile(p);
+          } else {
+            setProfile(null);
+          }
+        } catch (err) {
+          console.error('useAuth: error during auth state change:', err);
+          // State may be partially set — ensure user/session are at least
+          // consistent with what Supabase reported.
+          setSession(session);
+          setUser(session?.user ?? null);
+        } finally {
+          // Always unblock loading regardless of success or error.
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
