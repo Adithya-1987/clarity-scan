@@ -4,7 +4,7 @@ import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion"
 import {
   Brain, Zap, FileText, Shield, Stethoscope, Heart,
   Upload, Lightbulb, ArrowRight, Play, ChevronUp, ChevronDown,
-  Images, Target, Layers, Trophy, Star, Mail, LogOut,
+  Images, Target, Layers, Trophy, Mail, LogOut,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useScrollAnimation, useCountUp } from "@/hooks/useScrollAnimation";
@@ -34,12 +34,6 @@ const stats = [
   { icon: Trophy, value: 100, label: "Moderate Detection", suffix: "%" },
 ];
 
-const testimonials = [
-  { text: "This tool gave me peace of mind and early detection. The detailed reports helped my doctor create a treatment plan immediately.", author: "Sarah M.", role: "Patient, 67", rating: 5 },
-  { text: "As a caregiver, the educational resources have been invaluable. I finally understand what my mother is going through.", author: "John D.", role: "Caregiver, 45", rating: 5 },
-  { text: "The accuracy is impressive. It matched my clinical diagnosis and provided insights my neurologist found helpful.", author: "Dr. Emily R.", role: "Neurologist", rating: 5 },
-];
-
 const staggerContainer = {
   hidden: { opacity: 0 },
   visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
@@ -61,8 +55,13 @@ function Navbar() {
   }, []);
 
   const handleSignOut = async () => {
-    navigate("/home");
     await signOut();
+    navigate('/auth', { replace: true });
+    setTimeout(() => {
+      if (!window.location.pathname.startsWith('/auth')) {
+        window.location.href = '/auth';
+      }
+    }, 1000);
   };
 
   const firstName = (profile?.full_name || user?.email?.split("@")[0] || "").split(" ")[0];
@@ -362,7 +361,18 @@ function StatsSection() {
   const { ref, isVisible } = useScrollAnimation();
   return (
     <section ref={ref} className="py-24">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 lg:grid-cols-4 gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.5 }}
+        className="text-center mb-12"
+      >
+        <p className="text-xs uppercase tracking-widest text-primary-foreground/50 font-semibold mb-2">AI Model Statistics</p>
+        <h2 className="text-3xl font-heading font-bold text-primary-foreground">By The Numbers</h2>
+      </motion.div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
         {stats.map((stat, i) => {
           const count = useCountUp(stat.value, 2000, isVisible);
           return (
@@ -388,60 +398,6 @@ function StatsSection() {
           );
         })}
       </div>
-    </section>
-  );
-}
-
-function TestimonialsSection() {
-  return (
-    <section className="py-24">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20, filter: "blur(10px)" }}
-          whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-16"
-        >
-          <h2 className="text-3xl sm:text-4xl font-heading font-bold text-foreground">
-            Trusted by <span className="text-gradient">Thousands</span>
-          </h2>
-        </motion.div>
-        <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          variants={staggerContainer}
-          className="grid md:grid-cols-3 gap-6"
-        >
-          {testimonials.map((t, i) => (
-            <motion.div
-              key={i}
-              variants={staggerItem}
-              whileHover={{ y: -5, boxShadow: "0 20px 40px hsla(217, 91%, 60%, 0.12)" }}
-              className="card-medical"
-            >
-              <div className="flex gap-1 mb-3">
-                {[...Array(t.rating)].map((_, j) => (
-                  <motion.div
-                    key={j}
-                    initial={{ opacity: 0, scale: 0 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.3 + j * 0.1, type: "spring", stiffness: 300 }}
-                  >
-                    <Star className="h-4 w-4 fill-warning text-warning" />
-                  </motion.div>
-                ))}
-              </div>
-              <p className="text-foreground/80 italic mb-4">"{t.text}"</p>
-              <div>
-                <p className="font-semibold text-foreground">{t.author}</p>
-                <p className="text-muted-foreground text-sm">{t.role}</p>
-              </div>
-            </motion.div>
-          ))}
-        </motion.div>
       </div>
     </section>
   );
@@ -544,7 +500,6 @@ export default function HomePage() {
         <FeaturesSection />
         <HowItWorksSection />
         <StatsSection />
-        <TestimonialsSection />
         <Footer />
         <ScrollToTop />
       </div>

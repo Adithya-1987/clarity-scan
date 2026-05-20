@@ -41,12 +41,21 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Use onAuthStateChange as the single source of truth.
-    // It fires INITIAL_SESSION immediately (Supabase v2) and handles
-    // OAuth callbacks where tokens arrive in the URL, avoiding the race
-    // condition that getSession() + onAuthStateChange caused.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
+        // Handle sign-out — clear state and redirect away from protected routes.
+        // This also covers token expiry and logout from another tab.
+        if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+          if (!window.location.pathname.startsWith('/auth')) {
+            window.location.replace('/auth');
+          }
+          return;
+        }
+
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
@@ -64,7 +73,19 @@ export function useAuth() {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // Clear local state immediately so UI updates before the async call completes.
+    setUser(null);
+    setSession(null);
+    setProfile(null);
+
+    try {
+      await supabase.auth.signOut();
+      // SIGNED_OUT event handler above will redirect to /auth.
+    } catch (err) {
+      console.error('Sign out error:', err);
+      // State already cleared; force redirect as fallback.
+      window.location.replace('/auth');
+    }
   };
 
   const refreshProfile = async () => {

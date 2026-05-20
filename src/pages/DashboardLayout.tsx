@@ -1,27 +1,68 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, User, Brain, BookOpen, BarChart3, Settings, LogOut,
   Menu, X, ChevronRight, Upload, FileText, Calendar, TrendingUp, Activity,
-  Bell,
+  Bell, Inbox,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/lib/supabase";
+
+interface RecentScan {
+  id: string;
+  image_path: string;
+  prediction: string | null;
+  confidence: number | null;
+  status: string;
+  created_at: string;
+}
+
+function formatPrediction(pred: string | null): string {
+  if (!pred) return '—';
+  if (pred === 'NonDemented') return 'Non Demented';
+  if (pred === 'VeryMildDemented') return 'Very Mild';
+  if (pred === 'MildDemented') return 'Mild';
+  if (pred === 'ModerateDemented') return 'Moderate';
+  // Already human-readable
+  return pred;
+}
+
+function getRiskLevel(pred: string | null): { value: string; color: string } {
+  if (!pred) return { value: '—', color: 'text-muted-foreground' };
+  const p = pred.toLowerCase();
+  if (p.includes('non')) return { value: 'Low', color: 'text-success' };
+  if (p.includes('very') && p.includes('mild')) return { value: 'Low', color: 'text-success' };
+  if (p.includes('mild')) return { value: 'Moderate', color: 'text-warning' };
+  if (p.includes('moderate')) return { value: 'High', color: 'text-destructive' };
+  return { value: 'Unknown', color: 'text-muted-foreground' };
+}
+
+function getScanBadgeColor(pred: string | null, status: string): string {
+  if (status === 'failed') return 'bg-destructive';
+  if (!pred || status !== 'done') return 'bg-warning';
+  const p = pred.toLowerCase();
+  if (p.includes('non')) return 'bg-success';
+  if (p.includes('very') || p.includes('mild')) return 'bg-warning';
+  if (p.includes('moderate')) return 'bg-destructive';
+  return 'bg-warning';
+}
+
+function getFilename(imagePath: string): string {
+  const parts = imagePath.split('/');
+  const full = parts[parts.length - 1];
+  const idx = full.indexOf('_');
+  return idx !== -1 ? full.slice(idx + 1) : full;
+}
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", badge: "" },
   { icon: User, label: "My Profile", path: "/dashboard/profile", badge: "" },
   { icon: Brain, label: "Upload & Analyze", path: "/dashboard/upload", badge: "New" },
   { icon: BookOpen, label: "About Alzheimer's", path: "/about", badge: "" },
-  { icon: BarChart3, label: "My Reports", path: "/dashboard/reports", badge: "3" },
+  { icon: BarChart3, label: "My Reports", path: "/dashboard/reports", badge: "" },
   { icon: Settings, label: "Settings", path: "/dashboard/settings", badge: "" },
-];
-
-const recentScans = [
-  { date: "2026-03-07", type: "T1 MRI", result: "Non-Demented", confidence: 92, color: "bg-success" },
-  { date: "2026-02-20", type: "FLAIR", result: "Very Mild", confidence: 78, color: "bg-warning" },
-  { date: "2026-01-15", type: "T2 MRI", result: "Mild", confidence: 85, color: "bg-warning" },
 ];
 
 const staggerContainer = {
@@ -39,8 +80,14 @@ function DashboardSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggl
   const { user, signOut } = useAuth();
 
   const handleLogout = async () => {
-    navigate("/home", { replace: true });
     await signOut();
+    navigate('/auth', { replace: true });
+    // Fallback in case navigate doesn't trigger within 1 second
+    setTimeout(() => {
+      if (!window.location.pathname.startsWith('/auth')) {
+        window.location.href = '/auth';
+      }
+    }, 1000);
   };
 
   const displayName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
@@ -159,11 +206,45 @@ function DashboardOverview() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const firstName = (user?.user_metadata?.full_name || user?.email?.split("@")[0] || "there").split(" ")[0];
+
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [totalScans, setTotalScans] = useState(0);
+  const [recentScans, setRecentScans] = useState<RecentScan[]>([]);
+  const [latestScan, setLatestScan] = useState<RecentScan | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data, count } = await supabase
+        .from('scans')
+        .select('id, created_at, prediction, confidence, status, image_path', { count: 'exact' })
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      setTotalScans(count ?? 0);
+      const rows = data ?? [];
+      setRecentScans(rows);
+      setLatestScan(rows[0] ?? null);
+      setStatsLoading(false);
+    })();
+  }, [user]);
+
+  const risk = getRiskLevel(latestScan?.prediction ?? null);
+  const latestLabel = latestScan
+    ? (latestScan.status === 'done' ? formatPrediction(latestScan.prediction) : 'Processing…')
+    : 'No scans yet';
+  const latestDate = latestScan
+    ? new Date(latestScan.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : '—';
+  const latestColor = latestScan?.status === 'done' && latestScan.prediction
+    ? getRiskLevel(latestScan.prediction).color
+    : 'text-muted-foreground';
+
   const quickStats = [
-    { icon: BarChart3, label: "Total Scans", value: "12", trend: "+3 this month", color: "text-primary" },
-    { icon: Activity, label: "Latest Result", value: "Non-Demented", trend: "Mar 7, 2026", color: "text-success" },
-    { icon: TrendingUp, label: "Risk Level", value: "Low", trend: "Based on latest scan", color: "text-success" },
-    { icon: Calendar, label: "Next Checkup", value: "Apr 7", trend: "30 days away", color: "text-accent" },
+    { icon: BarChart3, label: "Total Scans", value: statsLoading ? "—" : String(totalScans), trend: "lifetime scans", color: "text-primary" },
+    { icon: Activity, label: "Latest Result", value: statsLoading ? "—" : latestLabel, trend: latestDate, color: latestColor },
+    { icon: TrendingUp, label: "Risk Level", value: statsLoading ? "—" : risk.value, trend: "Based on latest scan", color: risk.color },
+    { icon: Calendar, label: "Last Scan", value: statsLoading ? "—" : (latestScan ? new Date(latestScan.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : "Never"), trend: latestScan ? "most recent" : "no scans yet", color: "text-accent" },
   ];
 
   return (
@@ -264,55 +345,95 @@ function DashboardOverview() {
         className="card-medical"
       >
         <h2 className="font-heading font-semibold text-foreground mb-4">Recent Activity</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-muted-foreground">
-                <th className="pb-3 font-medium">Date</th>
-                <th className="pb-3 font-medium">Scan Type</th>
-                <th className="pb-3 font-medium">Result</th>
-                <th className="pb-3 font-medium">Confidence</th>
-                <th className="pb-3 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentScans.map((scan, i) => (
-                <motion.tr
-                  key={i}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4 + i * 0.08 }}
-                  whileHover={{ backgroundColor: "hsl(var(--muted) / 0.5)" }}
-                  className="border-b border-border/50 last:border-0 transition-colors"
-                >
-                  <td className="py-3 mono text-xs text-muted-foreground">{scan.date}</td>
-                  <td className="py-3">{scan.type}</td>
-                  <td className="py-3">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${scan.color} text-primary-foreground`}>
-                      {scan.result}
-                    </span>
-                  </td>
-                  <td className="py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
-                        <motion.div
-                          className={`h-full ${scan.color} rounded-full`}
-                          initial={{ width: 0 }}
-                          animate={{ width: `${scan.confidence}%` }}
-                          transition={{ duration: 0.8, delay: 0.5 + i * 0.1 }}
-                        />
-                      </div>
-                      <span className="mono text-xs">{scan.confidence}%</span>
-                    </div>
-                  </td>
-                  <td className="py-3">
-                    <motion.button whileHover={{ scale: 1.05 }} className="text-accent hover:underline text-xs font-medium">View</motion.button>
-                  </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+
+        {statsLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="h-6 w-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : recentScans.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex flex-col items-center justify-center py-12 text-center"
+          >
+            <Inbox className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+            <p className="text-muted-foreground text-sm mb-4">No scans yet</p>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/dashboard/upload')}
+              className="btn-medical gradient-hero text-primary-foreground text-sm"
+            >
+              <Upload className="h-4 w-4" /> Upload Your First Scan
+            </motion.button>
+          </motion.div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-muted-foreground">
+                  <th className="pb-3 font-medium">Date</th>
+                  <th className="pb-3 font-medium">File</th>
+                  <th className="pb-3 font-medium">Result</th>
+                  <th className="pb-3 font-medium">Confidence</th>
+                  <th className="pb-3 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentScans.map((scan, i) => {
+                  const badgeColor = getScanBadgeColor(scan.prediction, scan.status);
+                  const label = scan.status === 'done' ? formatPrediction(scan.prediction) : scan.status === 'failed' ? 'Failed' : 'Pending';
+                  const filename = getFilename(scan.image_path);
+                  const date = new Date(scan.created_at).toLocaleDateString('en-CA');
+                  return (
+                    <motion.tr
+                      key={scan.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.4 + i * 0.08 }}
+                      whileHover={{ backgroundColor: "hsl(var(--muted) / 0.5)" }}
+                      className="border-b border-border/50 last:border-0 transition-colors"
+                    >
+                      <td className="py-3 mono text-xs text-muted-foreground">{date}</td>
+                      <td className="py-3 text-xs text-muted-foreground max-w-[140px] truncate">{filename}</td>
+                      <td className="py-3">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeColor} text-primary-foreground`}>
+                          {label}
+                        </span>
+                      </td>
+                      <td className="py-3">
+                        {scan.confidence != null ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                              <motion.div
+                                className={`h-full ${badgeColor} rounded-full`}
+                                initial={{ width: 0 }}
+                                animate={{ width: `${scan.confidence}%` }}
+                                transition={{ duration: 0.8, delay: 0.5 + i * 0.1 }}
+                              />
+                            </div>
+                            <span className="mono text-xs">{scan.confidence}%</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="py-3">
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          onClick={() => navigate('/dashboard/reports')}
+                          className="text-accent hover:underline text-xs font-medium"
+                        >
+                          View
+                        </motion.button>
+                      </td>
+                    </motion.tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </motion.div>
     </div>
   );

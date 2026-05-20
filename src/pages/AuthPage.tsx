@@ -104,7 +104,7 @@ export default function AuthPage() {
     setError(null);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/dashboard` },
+      options: { redirectTo: `${window.location.origin}/auth` },
     });
     if (error) setError(error.message);
   };
