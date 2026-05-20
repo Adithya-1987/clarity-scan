@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Upload, Brain, X, AlertTriangle,
@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
-const FASTAPI_URL = "http://127.0.0.1:8000";
+const FASTAPI_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 const CLASS_META: Record<string, { label: string; color: string; bgClass: string; description: string }> = {
   NonDemented: {
@@ -74,7 +74,26 @@ export default function UploadAnalyzePage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PredictionResult | null>(null);
 
+  // Wake up backend on page load (Hugging Face Spaces sleeps after inactivity)
+  useEffect(() => {
+    fetch(`${FASTAPI_URL}/health`).catch(() => {});
+  }, []);
+
   const handleFile = useCallback((f: File) => {
+    // Validate file type and size
+    const validTypes = ["image/jpeg", "image/png", "image/jpg"];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+
+    if (!validTypes.includes(f.type) && !f.name.endsWith(".dcm")) {
+      setError("Invalid file type. Please upload a JPG or PNG brain MRI scan.");
+      return;
+    }
+
+    if (f.size > maxSize) {
+      setError("File too large. Maximum size is 10MB.");
+      return;
+    }
+
     setFile(f);
     setError(null);
     const reader = new FileReader();
@@ -134,28 +153,49 @@ export default function UploadAnalyzePage() {
       if (dbError) throw new Error(`DB insert failed: ${dbError.message}`);
       await animateTo(40, 1);
 
-      // Stages 2–3 — FastAPI inference
+      // Stages 2–3 — FastAPI inference with timeout and error handling
       await animateTo(55, 2);
-      const response = await fetch(`${FASTAPI_URL}/predict`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ scan_id: scanRow.id, image_path: filePath }),
-      });
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 90000);
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.detail ?? `FastAPI error ${response.status}`);
+      try {
+        const response = await fetch(`${FASTAPI_URL}/predict`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ scan_id: scanRow.id, image_path: filePath }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.detail ?? `Server error ${response.status}`);
+        }
+
+        await animateTo(80, 3);
+        const prediction: PredictionResult = await response.json();
+        await animateTo(100, 4);
+
+        setResult(prediction);
+        setTimeout(() => setStep("results"), 400);
+
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        
+        if (err.name === "AbortError") {
+          setError("Request timed out. The server may be waking up — please try again in 30 seconds.");
+        } else if (!navigator.onLine || err.message.toLowerCase().includes("fetch")) {
+          setError("Cannot connect to the analysis server. Please check your connection and try again.");
+        } else {
+          setError(err.message || "An unexpected error occurred.");
+        }
+        setStep("upload");
       }
-
-      await animateTo(80, 3);
-      const prediction: PredictionResult = await response.json();
-      await animateTo(100, 4);
-
-      setResult(prediction);
-      setTimeout(() => setStep("results"), 400);
 
     } catch (err: any) {
       setError(err.message ?? "Something went wrong. Please try again.");
