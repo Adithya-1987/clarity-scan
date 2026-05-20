@@ -80,14 +80,8 @@ function DashboardSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggl
   const { user, signOut } = useAuth();
 
   const handleLogout = async () => {
-    await signOut();
+    await signOut(); // waits for Supabase to clear localStorage
     navigate('/auth', { replace: true });
-    // Fallback in case navigate doesn't trigger within 1 second
-    setTimeout(() => {
-      if (!window.location.pathname.startsWith('/auth')) {
-        window.location.href = '/auth';
-      }
-    }, 1000);
   };
 
   const displayName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";

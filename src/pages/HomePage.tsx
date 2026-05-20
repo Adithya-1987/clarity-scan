@@ -55,13 +55,8 @@ function Navbar() {
   }, []);
 
   const handleSignOut = async () => {
-    await signOut();
+    await signOut(); // waits for Supabase to clear localStorage
     navigate('/auth', { replace: true });
-    setTimeout(() => {
-      if (!window.location.pathname.startsWith('/auth')) {
-        window.location.href = '/auth';
-      }
-    }, 1000);
   };
 
   const firstName = (profile?.full_name || user?.email?.split("@")[0] || "").split(" ")[0];

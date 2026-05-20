@@ -43,16 +43,19 @@ export function useAuth() {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        // Handle sign-out — clear state and redirect away from protected routes.
-        // This also covers token expiry and logout from another tab.
         if (event === 'SIGNED_OUT') {
+          // Just clear state. Do NOT navigate here.
+          // Reason: window.location during Supabase signOut reloads the page
+          // before localStorage is cleared, so AuthPage re-reads the stale
+          // session and redirects back to /dashboard — breaking logout.
+          // Navigation is handled by the calling component (navigate('/auth'))
+          // after await signOut() ensures supabase has fully cleared storage.
+          // ProtectedRoute handles the redirect for external logouts (token
+          // expiry, other-tab signout) via <Navigate to="/auth"> when user=null.
           setSession(null);
           setUser(null);
           setProfile(null);
           setLoading(false);
-          if (!window.location.pathname.startsWith('/auth')) {
-            window.location.replace('/auth');
-          }
           return;
         }
 
@@ -73,18 +76,19 @@ export function useAuth() {
   }, []);
 
   const signOut = async () => {
-    // Clear local state immediately so UI updates before the async call completes.
+    // Clear local state immediately so UI updates before the network call.
     setUser(null);
     setSession(null);
     setProfile(null);
 
     try {
+      // Must await — this clears Supabase localStorage before we navigate.
+      // Navigating before this completes leaves the session in storage and
+      // causes AuthPage to redirect back to /dashboard on the next load.
       await supabase.auth.signOut();
-      // SIGNED_OUT event handler above will redirect to /auth.
     } catch (err) {
       console.error('Sign out error:', err);
-      // State already cleared; force redirect as fallback.
-      window.location.replace('/auth');
+      // State is already cleared. Caller will still navigate away.
     }
   };
 
