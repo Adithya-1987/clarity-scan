@@ -4,7 +4,7 @@ import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion"
 import {
   Brain, Zap, FileText, Shield, Stethoscope, Heart,
   Upload, Lightbulb, ArrowRight, Play, ChevronUp, ChevronDown,
-  Images, Target, Layers, Trophy, Mail, LogOut,
+  Images, Target, Layers, Trophy, Mail, LogOut, Menu, X,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useScrollAnimation, useCountUp } from "@/hooks/useScrollAnimation";
@@ -45,6 +45,7 @@ const staggerItem = {
 
 function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
 
@@ -101,38 +102,133 @@ function Navbar() {
           ))}
         </div>
         <div className="flex items-center gap-3">
-          {user ? (
-            <>
-              <Link to="/dashboard" className="flex items-center gap-2">
-                {profile?.avatar_url ? (
-                  <img src={profile.avatar_url} alt="" className="h-8 w-8 rounded-full object-cover" />
-                ) : (
-                  <div className="h-8 w-8 rounded-full gradient-hero flex items-center justify-center text-primary-foreground text-xs font-bold">
-                    {firstName.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <span className="text-sm font-medium text-foreground/80 hidden sm:inline">{firstName}</span>
+          {/* Desktop: user + upload */}
+          <div className="hidden md:flex items-center gap-3">
+            {user ? (
+              <>
+                <Link to="/dashboard" className="flex items-center gap-2">
+                  {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="" className="h-8 w-8 rounded-full object-cover" />
+                  ) : (
+                    <div className="h-8 w-8 rounded-full gradient-hero flex items-center justify-center text-primary-foreground text-xs font-bold">
+                      {firstName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="text-sm font-medium text-foreground/80">{firstName}</span>
+                </Link>
+                <motion.button
+                  onClick={handleSignOut}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="text-sm font-medium text-foreground/60 hover:text-foreground transition-colors flex items-center gap-1"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Sign Out</span>
+                </motion.button>
+              </>
+            ) : (
+              <Link to="/auth" className="text-sm font-medium text-foreground/80 hover:text-foreground transition-colors">Login</Link>
+            )}
+            <motion.div whileHover={{ scale: 1.02, boxShadow: "0 8px 25px hsla(217, 91%, 60%, 0.3)" }} whileTap={{ scale: 0.98 }}>
+              <Link to="/dashboard/upload" className="btn-medical gradient-hero text-primary-foreground text-sm px-4 py-2">
+                Upload Scan
               </Link>
-              <motion.button
-                onClick={handleSignOut}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="text-sm font-medium text-foreground/60 hover:text-foreground transition-colors flex items-center gap-1"
+            </motion.div>
+          </div>
+          {/* Mobile: hamburger */}
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setMobileNavOpen(!mobileNavOpen)}
+            className="md:hidden p-2 rounded-lg hover:bg-white/10 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+            aria-label="Toggle menu"
+          >
+            {mobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </motion.button>
+        </div>
+      </div>
+
+      {/* Mobile dropdown menu */}
+      <AnimatePresence>
+        {mobileNavOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="md:hidden px-4 pb-4 pt-2 space-y-1 border-t border-border/50"
+            style={{
+              backgroundColor: "rgba(10,14,39,0.95)",
+              backdropFilter: "blur(16px)",
+            }}
+          >
+            {[
+              { href: "#features", label: "How It Works" },
+              { to: "/about", label: "About Alzheimer's" },
+              { to: "/dashboard", label: "Dashboard" },
+            ].map((link) =>
+              "to" in link ? (
+                <Link
+                  key={link.label}
+                  to={link.to!}
+                  onClick={() => setMobileNavOpen(false)}
+                  className="block px-4 py-3 rounded-xl text-sm font-medium text-foreground/80 hover:bg-muted hover:text-foreground transition-colors min-h-[44px] flex items-center"
+                >
+                  {link.label}
+                </Link>
+              ) : (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  onClick={() => setMobileNavOpen(false)}
+                  className="block px-4 py-3 rounded-xl text-sm font-medium text-foreground/80 hover:bg-muted hover:text-foreground transition-colors min-h-[44px] flex items-center"
+                >
+                  {link.label}
+                </a>
+              )
+            )}
+            {user ? (
+              <div className="pt-2 border-t border-border/50 space-y-1">
+                <Link
+                  to="/dashboard"
+                  onClick={() => setMobileNavOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-foreground/80 hover:bg-muted min-h-[44px]"
+                >
+                  {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="" className="h-6 w-6 rounded-full object-cover" />
+                  ) : (
+                    <div className="h-6 w-6 rounded-full gradient-hero flex items-center justify-center text-primary-foreground text-xs font-bold">
+                      {firstName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  {firstName}
+                </Link>
+                <button
+                  onClick={() => { setMobileNavOpen(false); handleSignOut(); }}
+                  className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-foreground/60 hover:bg-muted hover:text-foreground transition-colors min-h-[44px]"
+                >
+                  <LogOut className="h-4 w-4" /> Sign Out
+                </button>
+              </div>
+            ) : (
+              <Link
+                to="/auth"
+                onClick={() => setMobileNavOpen(false)}
+                className="block px-4 py-3 rounded-xl text-sm font-medium text-foreground/80 hover:bg-muted transition-colors min-h-[44px] flex items-center"
               >
-                <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline">Sign Out</span>
-              </motion.button>
-            </>
-          ) : (
-            <Link to="/auth" className="text-sm font-medium text-foreground/80 hover:text-foreground transition-colors">Login</Link>
-          )}
-          <motion.div whileHover={{ scale: 1.02, boxShadow: "0 8px 25px hsla(217, 91%, 60%, 0.3)" }} whileTap={{ scale: 0.98 }}>
-            <Link to="/dashboard/upload" className="btn-medical gradient-hero text-primary-foreground text-sm px-4 py-2">
+                Login
+              </Link>
+            )}
+            <Link
+              to="/dashboard/upload"
+              onClick={() => setMobileNavOpen(false)}
+              className="btn-medical gradient-hero text-primary-foreground text-sm w-full justify-center mt-2"
+            >
               Upload Scan
             </Link>
           </motion.div>
-        </div>
-      </div>
+        )}
+      </AnimatePresence>
     </motion.nav>
   );
 }

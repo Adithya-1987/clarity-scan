@@ -168,7 +168,7 @@ export default function AboutAlzheimersPage() {
               onClick={() => setActiveTab(tab)}
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all min-h-[44px] ${
                 activeTab === tab ? "gradient-hero text-primary-foreground" : "text-muted-foreground hover:bg-muted"
               }`}
             >

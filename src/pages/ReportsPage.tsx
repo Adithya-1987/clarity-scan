@@ -125,15 +125,15 @@ export default function ReportsPage() {
                 whileHover={{ y: -3, boxShadow: "0 15px 30px rgba(0,0,0,0.08)" }}
                 className="card-medical flex items-center justify-between"
               >
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 min-w-0 flex-1">
                   <motion.div
                     whileHover={{ rotate: 5, scale: 1.1 }}
-                    className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center"
+                    className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center flex-shrink-0"
                   >
                     <FileText className="h-5 w-5 text-muted-foreground" />
                   </motion.div>
-                  <div>
-                    <p className="font-medium text-foreground text-sm">{filename}</p>
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground text-sm truncate">{filename}</p>
                     <p className="text-xs text-muted-foreground mono">{date}</p>
                   </div>
                 </div>

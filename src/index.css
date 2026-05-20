@@ -158,7 +158,9 @@ body {
     @apply -translate-y-1;
   }
   .btn-medical {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold transition-all duration-200;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold transition-all duration-200 min-h-[44px];
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
   .btn-medical:hover {
     @apply scale-105;
@@ -167,7 +169,8 @@ body {
     @apply scale-95;
   }
   .input-medical {
-    @apply w-full rounded-lg border border-border bg-input px-4 py-3 text-sm text-foreground transition-all duration-200 outline-none placeholder:text-muted-foreground;
+    /* text-base (16px) prevents iOS auto-zoom on input focus */
+    @apply w-full rounded-lg border border-border bg-input px-4 py-3 text-base text-foreground transition-all duration-200 outline-none placeholder:text-muted-foreground;
   }
   .input-medical:focus {
     border-color: hsl(217, 91%, 60%);

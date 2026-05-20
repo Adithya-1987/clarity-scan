@@ -25,7 +25,6 @@ function formatPrediction(pred: string | null): string {
   if (pred === 'VeryMildDemented') return 'Very Mild';
   if (pred === 'MildDemented') return 'Mild';
   if (pred === 'ModerateDemented') return 'Moderate';
-  // Already human-readable
   return pred;
 }
 
@@ -74,13 +73,23 @@ const staggerItem = {
   visible: { opacity: 1, y: 0 },
 };
 
-function DashboardSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+// Shared nav content — used by both desktop sidebar and mobile drawer
+function SidebarContent({
+  collapsed = false,
+  onToggle,
+  onClose,
+}: {
+  collapsed?: boolean;
+  onToggle?: () => void;
+  onClose?: () => void;
+}) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
 
   const handleLogout = async () => {
-    await signOut(); // waits for Supabase to clear localStorage
+    onClose?.();
+    await signOut();
     navigate('/auth', { replace: true });
   };
 
@@ -89,13 +98,8 @@ function DashboardSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggl
   const initials = displayName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
 
   return (
-    <motion.aside
-      animate={{ width: collapsed ? 72 : 280 }}
-      transition={{ duration: 0.3, ease: "easeInOut" }}
-      className="bg-black/50 backdrop-blur-md border-r border-border flex flex-col h-screen sticky top-0 overflow-hidden"
-      style={{ zIndex: 10, position: 'relative' }}
-    >
-      <div className="p-4 flex items-center justify-between border-b border-border">
+    <>
+      <div className="p-4 flex items-center justify-between border-b border-border flex-shrink-0">
         <AnimatePresence>
           {!collapsed && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -103,14 +107,26 @@ function DashboardSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggl
             </motion.div>
           )}
         </AnimatePresence>
-        <motion.button
-          onClick={onToggle}
-          whileHover={{ scale: 1.1, rotate: 5 }}
-          whileTap={{ scale: 0.9 }}
-          className="p-2 rounded-lg hover:bg-muted transition-colors"
-        >
-          {collapsed ? <Menu className="h-5 w-5" /> : <X className="h-5 w-5" />}
-        </motion.button>
+        {onToggle && (
+          <motion.button
+            onClick={onToggle}
+            whileHover={{ scale: 1.1, rotate: 5 }}
+            whileTap={{ scale: 0.9 }}
+            className="p-2 rounded-lg hover:bg-muted transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+          >
+            {collapsed ? <Menu className="h-5 w-5" /> : <X className="h-5 w-5" />}
+          </motion.button>
+        )}
+        {!onToggle && onClose && (
+          <motion.button
+            onClick={onClose}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            className="p-2 rounded-lg hover:bg-muted transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+          >
+            <X className="h-5 w-5" />
+          </motion.button>
+        )}
       </div>
 
       <AnimatePresence>
@@ -119,25 +135,22 @@ function DashboardSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggl
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="p-4 border-b border-border"
+            className="p-4 border-b border-border flex-shrink-0"
           >
             <div className="flex items-center gap-3">
-              <motion.div
-                whileHover={{ scale: 1.1 }}
-                className="h-10 w-10 rounded-full gradient-hero flex items-center justify-center text-primary-foreground font-bold text-sm"
-              >
+              <div className="h-10 w-10 rounded-full gradient-hero flex items-center justify-center text-primary-foreground font-bold text-sm flex-shrink-0">
                 {initials}
-              </motion.div>
-              <div>
-                <p className="font-semibold text-sm text-foreground">{displayName}</p>
-                <p className="text-xs text-muted-foreground">{displayEmail}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-sm text-foreground truncate">{displayName}</p>
+                <p className="text-xs text-muted-foreground truncate">{displayEmail}</p>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <nav className="flex-1 p-3 space-y-1">
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {menuItems.map((item, i) => {
           const active = location.pathname === item.path;
           return (
@@ -150,14 +163,22 @@ function DashboardSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggl
             >
               <Link
                 to={item.path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
-                  active ? "gradient-hero text-primary-foreground shadow-md" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                onClick={onClose}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 min-h-[44px] ${
+                  active
+                    ? "gradient-hero text-primary-foreground shadow-md"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
                 <item.icon className="h-5 w-5 flex-shrink-0" />
                 <AnimatePresence>
                   {!collapsed && (
-                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1">
+                    <motion.span
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="flex-1"
+                    >
                       {item.label}
                     </motion.span>
                   )}
@@ -167,7 +188,11 @@ function DashboardSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggl
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     transition={{ type: "spring", stiffness: 300 }}
-                    className={`text-xs px-2 py-0.5 rounded-full ${active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-accent text-accent-foreground"}`}
+                    className={`text-xs px-2 py-0.5 rounded-full ${
+                      active
+                        ? "bg-primary-foreground/20 text-primary-foreground"
+                        : "bg-accent text-accent-foreground"
+                    }`}
                   >
                     {item.badge}
                   </motion.span>
@@ -178,20 +203,36 @@ function DashboardSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggl
         })}
       </nav>
 
-      <div className="p-3 border-t border-border">
+      <div className="p-3 border-t border-border flex-shrink-0">
         <motion.button
           onClick={handleLogout}
           whileHover={{ x: 3, color: "hsl(0, 84%, 60%)" }}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all w-full"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all w-full min-h-[44px]"
         >
           <LogOut className="h-5 w-5 flex-shrink-0" />
           <AnimatePresence>
             {!collapsed && (
-              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>Logout</motion.span>
+              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                Logout
+              </motion.span>
             )}
           </AnimatePresence>
         </motion.button>
       </div>
+    </>
+  );
+}
+
+// Desktop sidebar with collapse animation — hidden on mobile
+function DesktopSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+  return (
+    <motion.aside
+      animate={{ width: collapsed ? 72 : 280 }}
+      transition={{ duration: 0.3, ease: "easeInOut" }}
+      className="hidden lg:flex flex-col bg-black/50 backdrop-blur-md border-r border-border h-screen sticky top-0 overflow-hidden"
+      style={{ zIndex: 10 }}
+    >
+      <SidebarContent collapsed={collapsed} onToggle={onToggle} />
     </motion.aside>
   );
 }
@@ -242,14 +283,14 @@ function DashboardOverview() {
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 lg:space-y-8">
       <motion.div
         initial={{ opacity: 0, y: 10, filter: "blur(8px)" }}
         animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
         transition={{ duration: 0.5 }}
       >
-        <h1 className="text-2xl font-heading font-bold text-foreground">Welcome back, {firstName}! 👋</h1>
-        <p className="text-muted-foreground mt-1">Here's your brain health overview</p>
+        <h1 className="text-xl lg:text-2xl font-heading font-bold text-foreground">Welcome back, {firstName}! 👋</h1>
+        <p className="text-muted-foreground mt-1 text-sm">Here's your brain health overview</p>
       </motion.div>
 
       {/* Quick Stats */}
@@ -257,7 +298,7 @@ function DashboardOverview() {
         initial="hidden"
         animate="visible"
         variants={staggerContainer}
-        className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4"
+        className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4"
       >
         {quickStats.map((stat) => (
           <motion.div
@@ -272,9 +313,9 @@ function DashboardOverview() {
               </motion.div>
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
             </div>
-            <p className="text-2xl font-heading font-bold text-foreground">{stat.value}</p>
+            <p className="text-xl lg:text-2xl font-heading font-bold text-foreground truncate">{stat.value}</p>
             <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
-            <p className="text-xs text-accent mt-0.5">{stat.trend}</p>
+            <p className="text-xs text-accent mt-0.5 truncate">{stat.trend}</p>
           </motion.div>
         ))}
       </motion.div>
@@ -284,50 +325,50 @@ function DashboardOverview() {
         initial="hidden"
         animate="visible"
         variants={staggerContainer}
-        className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4"
+        className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4"
       >
         <motion.button
           variants={staggerItem}
           whileHover={{ scale: 1.03, boxShadow: "0 15px 30px hsla(217, 91%, 60%, 0.2)" }}
           whileTap={{ scale: 0.97 }}
           onClick={() => navigate("/dashboard/upload")}
-          className="card-medical gradient-hero text-primary-foreground text-left"
+          className="card-medical gradient-hero text-primary-foreground text-left min-h-[44px]"
         >
           <Upload className="h-6 w-6 mb-2" />
-          <p className="font-semibold">Upload New Scan</p>
-          <p className="text-xs text-primary-foreground/70 mt-1">Analyze a brain MRI</p>
+          <p className="font-semibold text-sm lg:text-base">Upload New Scan</p>
+          <p className="text-xs text-primary-foreground/70 mt-1 hidden sm:block">Analyze a brain MRI</p>
         </motion.button>
         <motion.button
           variants={staggerItem}
           whileHover={{ scale: 1.03, boxShadow: "0 15px 30px rgba(0,0,0,0.1)" }}
           whileTap={{ scale: 0.97 }}
           onClick={() => navigate("/dashboard/reports")}
-          className="card-medical text-left"
+          className="card-medical text-left min-h-[44px]"
         >
           <FileText className="h-6 w-6 mb-2 text-info" />
-          <p className="font-semibold text-foreground">View Reports</p>
-          <p className="text-xs text-muted-foreground mt-1">See past analyses</p>
+          <p className="font-semibold text-foreground text-sm lg:text-base">View Reports</p>
+          <p className="text-xs text-muted-foreground mt-1 hidden sm:block">See past analyses</p>
         </motion.button>
         <motion.button
           variants={staggerItem}
           whileHover={{ scale: 1.03, boxShadow: "0 15px 30px rgba(0,0,0,0.1)" }}
           whileTap={{ scale: 0.97 }}
           onClick={() => navigate("/about")}
-          className="card-medical text-left"
+          className="card-medical text-left min-h-[44px]"
         >
           <BookOpen className="h-6 w-6 mb-2 text-accent" />
-          <p className="font-semibold text-foreground">Learn About AD</p>
-          <p className="text-xs text-muted-foreground mt-1">Educational resources</p>
+          <p className="font-semibold text-foreground text-sm lg:text-base">Learn About AD</p>
+          <p className="text-xs text-muted-foreground mt-1 hidden sm:block">Educational resources</p>
         </motion.button>
         <motion.button
           variants={staggerItem}
           whileHover={{ scale: 1.03, boxShadow: "0 15px 30px rgba(0,0,0,0.1)" }}
           whileTap={{ scale: 0.97 }}
-          className="card-medical text-left"
+          className="card-medical text-left min-h-[44px]"
         >
           <Calendar className="h-6 w-6 mb-2 text-warning" />
-          <p className="font-semibold text-foreground">Book Consultation</p>
-          <p className="text-xs text-muted-foreground mt-1">Find a specialist</p>
+          <p className="font-semibold text-foreground text-sm lg:text-base">Book Consultation</p>
+          <p className="text-xs text-muted-foreground mt-1 hidden sm:block">Find a specialist</p>
         </motion.button>
       </motion.div>
 
@@ -362,8 +403,8 @@ function DashboardOverview() {
             </motion.button>
           </motion.div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto -mx-2 px-2">
+            <table className="w-full text-sm min-w-[480px]">
               <thead>
                 <tr className="border-b border-border text-left text-muted-foreground">
                   <th className="pb-3 font-medium">Date</th>
@@ -388,9 +429,9 @@ function DashboardOverview() {
                       whileHover={{ backgroundColor: "hsl(var(--muted) / 0.5)" }}
                       className="border-b border-border/50 last:border-0 transition-colors"
                     >
-                      <td className="py-3 mono text-xs text-muted-foreground">{date}</td>
+                      <td className="py-3 mono text-xs text-muted-foreground whitespace-nowrap">{date}</td>
                       <td className="py-3 text-xs text-muted-foreground max-w-[140px] truncate">{filename}</td>
-                      <td className="py-3">
+                      <td className="py-3 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeColor} text-primary-foreground`}>
                           {label}
                         </span>
@@ -406,7 +447,7 @@ function DashboardOverview() {
                                 transition={{ duration: 0.8, delay: 0.5 + i * 0.1 }}
                               />
                             </div>
-                            <span className="mono text-xs">{scan.confidence}%</span>
+                            <span className="mono text-xs whitespace-nowrap">{scan.confidence}%</span>
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
@@ -416,7 +457,7 @@ function DashboardOverview() {
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           onClick={() => navigate('/dashboard/reports')}
-                          className="text-accent hover:underline text-xs font-medium"
+                          className="text-accent hover:underline text-xs font-medium min-h-[44px] flex items-center"
                         >
                           View
                         </motion.button>
@@ -435,23 +476,77 @@ function DashboardOverview() {
 
 export default function DashboardLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const isDashboardRoot = location.pathname === "/dashboard";
 
+  // Lock body scroll when mobile drawer is open
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileOpen]);
+
+  // Close mobile drawer on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
   return (
     <div style={{ position: 'relative', zIndex: 10, minHeight: '100vh' }}>
+      {/* Mobile drawer — backdrop + slide-in sidebar */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            <motion.div
+              key="backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+              onClick={() => setMobileOpen(false)}
+            />
+            <motion.aside
+              key="mobile-sidebar"
+              initial={{ x: -280 }}
+              animate={{ x: 0 }}
+              exit={{ x: -280 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="fixed left-0 top-0 h-full w-[280px] z-50 lg:hidden bg-black/95 backdrop-blur-md border-r border-border flex flex-col"
+            >
+              <SidebarContent onClose={() => setMobileOpen(false)} />
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
       <div className="flex min-h-screen w-full relative">
-        <DashboardSidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
-        <main className="flex-1 p-6 lg:p-8 overflow-auto" style={{ position: 'relative', zIndex: 10 }}>
+        {/* Desktop sidebar */}
+        <DesktopSidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
+
+        {/* Main content */}
+        <main className="flex-1 min-w-0 p-4 lg:p-8 overflow-auto" style={{ position: 'relative', zIndex: 10 }}>
           <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Link to="/dashboard" className="hover:text-foreground transition-colors">Dashboard</Link>
-              {!isDashboardRoot && <ChevronRight className="h-4 w-4" />}
+            <div className="flex items-center gap-2 min-w-0">
+              {/* Hamburger — mobile only */}
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setMobileOpen(true)}
+                className="lg:hidden p-2 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                aria-label="Open menu"
+              >
+                <Menu className="h-5 w-5" />
+              </motion.button>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
+                <Link to="/dashboard" className="hover:text-foreground transition-colors whitespace-nowrap">Dashboard</Link>
+                {!isDashboardRoot && <ChevronRight className="h-4 w-4 flex-shrink-0" />}
+              </div>
             </div>
             <motion.button
               whileHover={{ scale: 1.1, rotate: 15 }}
               whileTap={{ scale: 0.9 }}
-              className="relative p-2 rounded-lg hover:bg-white/10 transition-colors"
+              className="relative p-2 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
             >
               <Bell className="h-5 w-5 text-muted-foreground" />
               <motion.span
