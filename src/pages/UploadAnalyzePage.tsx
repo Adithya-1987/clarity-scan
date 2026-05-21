@@ -73,6 +73,11 @@ export default function UploadAnalyzePage() {
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PredictionResult | null>(null);
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+
+  const addLog = (msg: string) => {
+    setDebugLogs(prev => [...prev, `${new Date().toISOString().slice(11, 19)} ${msg}`]);
+  };
 
   // Ref to hold the crawl interval so it can be cancelled from any code path
   const crawlIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -153,26 +158,33 @@ export default function UploadAnalyzePage() {
     setProgress(0);
     setCurrentStage(0);
     setError(null);
+    setDebugLogs([]);
 
     try {
+      addLog('Starting analysis');
+
       // Stage 0 — upload to Supabase Storage
       await animateTo(15, 0);
       const timestamp = Date.now();
       const filePath = `${user.id}/${timestamp}_${file.name}`;
+      addLog('Uploading to Supabase storage...');
       const { error: storageError } = await supabase.storage
         .from("mri-scans")
         .upload(filePath, file, { upsert: false });
       if (storageError) throw new Error(`Storage upload failed: ${storageError.message}`);
+      addLog(`Upload done: ${filePath}`);
       await animateTo(25, 0);
 
       // Stage 1 — insert pending row in scans table
       await animateTo(30, 1);
+      addLog('Inserting scan to DB...');
       const { data: scanRow, error: dbError } = await supabase
         .from("scans")
         .insert({ user_id: user.id, image_path: filePath, status: "pending" })
         .select("id")
         .single();
       if (dbError) throw new Error(`DB insert failed: ${dbError.message}`);
+      addLog(`Scan ID: ${scanRow.id}`);
       await animateTo(40, 1);
 
       // Stage 2 — begin inference; crawl progress so bar keeps moving on mobile
@@ -183,6 +195,7 @@ export default function UploadAnalyzePage() {
       const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min for mobile
 
       try {
+        addLog('Calling /predict endpoint...');
         console.log('[NeuroScan] Sending predict request to', FASTAPI_URL);
 
         const response = await fetch(`${FASTAPI_URL}/predict`, {
@@ -198,6 +211,8 @@ export default function UploadAnalyzePage() {
         clearTimeout(timeoutId);
         stopCrawl();
 
+        addLog(`Response status: ${response.status}`);
+        addLog(`Response ok: ${response.ok}`);
         console.log('[NeuroScan] Response status:', response.status);
         console.log('[NeuroScan] Response ok:', response.ok);
 
@@ -208,16 +223,19 @@ export default function UploadAnalyzePage() {
 
         await animateTo(80, 3);
 
+        addLog('Parsing JSON...');
         const data = await response.json().catch((err: unknown) => {
           console.error('[NeuroScan] JSON parse failed:', err);
           throw new Error('Failed to parse server response. Please try again.');
         });
 
+        addLog(`Prediction: ${JSON.stringify(data)}`);
         console.log('[NeuroScan] Prediction data:', data);
 
         const prediction = data as PredictionResult;
         await animateTo(100, 4);
 
+        addLog('Setting results...');
         setResult(prediction);
         console.log('[NeuroScan] Result set, moving to results step');
         setStep("results");
@@ -227,6 +245,8 @@ export default function UploadAnalyzePage() {
         stopCrawl();
 
         const e = err instanceof Error ? err : null;
+        addLog(`ERROR: ${e?.message ?? String(err)}`);
+        addLog(`ERROR name: ${e?.name ?? 'unknown'}`);
         console.error('[NeuroScan] Predict error:', e?.message ?? err);
 
         if (e?.name === "AbortError") {
@@ -241,7 +261,10 @@ export default function UploadAnalyzePage() {
 
     } catch (err: unknown) {
       stopCrawl();
-      const msg = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+      const e = err instanceof Error ? err : null;
+      addLog(`ERROR: ${e?.message ?? String(err)}`);
+      addLog(`ERROR name: ${e?.name ?? 'unknown'}`);
+      const msg = e?.message ?? "Something went wrong. Please try again.";
       console.error('[NeuroScan] Outer error:', msg);
       setError(msg);
       setStep("upload");
@@ -532,6 +555,24 @@ export default function UploadAnalyzePage() {
         )}
 
       </AnimatePresence>
+
+      {/* DEBUG PANEL — remove after mobile debugging */}
+      <div style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: 'rgba(0,0,0,0.9)',
+        color: '#00ff00',
+        fontSize: '11px',
+        padding: '8px',
+        maxHeight: '200px',
+        overflowY: 'auto',
+        zIndex: 9999,
+        fontFamily: 'monospace'
+      }}>
+        {debugLogs.map((log, i) => <div key={i}>{log}</div>)}
+      </div>
     </div>
   );
 }
