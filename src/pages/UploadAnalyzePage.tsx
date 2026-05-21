@@ -5,7 +5,6 @@ import {
   Download, Share2, Mail, CheckCircle, Loader2,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -39,7 +38,7 @@ const CLASS_META: Record<string, { label: string; color: string; bgClass: string
 };
 
 const analysisStages = [
-  "Uploading scan to secure storage...",
+  "Sending scan to analysis server...",
   "Applying CLAHE preprocessing...",
   "Running ResNet-50 model...",
   "Running EfficientNet-B3 model...",
@@ -160,118 +159,79 @@ export default function UploadAnalyzePage() {
     setError(null);
     setDebugLogs([]);
 
+    addLog('Starting analysis');
+    addLog(`Network online: ${navigator.onLine}`);
+    addLog(`File size: ${(file.size / 1024).toFixed(1)}KB`);
+
+    await animateTo(15, 0);
+
+    // Build multipart FormData — server handles storage + DB
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('user_id', user.id);
+    addLog('FormData built, starting crawl...');
+
+    startCrawl(78);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min for mobile
+
     try {
-      addLog('Starting analysis');
+      addLog('Calling /predict endpoint...');
 
-      // Stage 0 — upload to Supabase Storage
-      await animateTo(15, 0);
-      const timestamp = Date.now();
-      const filePath = `${user.id}/${timestamp}_${file.name}`;
-      addLog(`Network online: ${navigator.onLine}`);
-      addLog(`File size: ${(file.size / 1024).toFixed(1)}KB`);
-      addLog('Uploading to Supabase storage...');
-      const { error: storageError } = await Promise.race([
-        supabase.storage.from("mri-scans").upload(filePath, file, { upsert: false }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Storage upload timed out after 30s — check network or bucket config')), 30000)
-        ),
-      ]);
-      if (storageError) throw new Error(`Storage upload failed: ${storageError.message}`);
-      addLog(`Upload done: ${filePath}`);
-      await animateTo(25, 0);
+      const response = await fetch(`${FASTAPI_URL}/predict`, {
+        method: 'POST',
+        headers: {
+          // No Content-Type — browser sets multipart boundary automatically
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: formData,
+        signal: controller.signal,
+      });
 
-      // Stage 1 — insert pending row in scans table
-      await animateTo(30, 1);
-      addLog('Inserting scan to DB...');
-      const { data: scanRow, error: dbError } = await supabase
-        .from("scans")
-        .insert({ user_id: user.id, image_path: filePath, status: "pending" })
-        .select("id")
-        .single();
-      if (dbError) throw new Error(`DB insert failed: ${dbError.message}`);
-      addLog(`Scan ID: ${scanRow.id}`);
-      await animateTo(40, 1);
+      clearTimeout(timeoutId);
+      stopCrawl();
 
-      // Stage 2 — begin inference; crawl progress so bar keeps moving on mobile
-      await animateTo(55, 2);
-      startCrawl(78); // slowly approaches 78% while waiting for the model
+      addLog(`Response status: ${response.status}`);
+      addLog(`Response ok: ${response.ok}`);
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min for mobile
-
-      try {
-        addLog('Calling /predict endpoint...');
-        console.log('[NeuroScan] Sending predict request to', FASTAPI_URL);
-
-        const response = await fetch(`${FASTAPI_URL}/predict`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ scan_id: scanRow.id, image_path: filePath }),
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeoutId);
-        stopCrawl();
-
-        addLog(`Response status: ${response.status}`);
-        addLog(`Response ok: ${response.ok}`);
-        console.log('[NeuroScan] Response status:', response.status);
-        console.log('[NeuroScan] Response ok:', response.ok);
-
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          throw new Error((errData as { detail?: string }).detail ?? `Server error ${response.status}`);
-        }
-
-        await animateTo(80, 3);
-
-        addLog('Parsing JSON...');
-        const data = await response.json().catch((err: unknown) => {
-          console.error('[NeuroScan] JSON parse failed:', err);
-          throw new Error('Failed to parse server response. Please try again.');
-        });
-
-        addLog(`Prediction: ${JSON.stringify(data)}`);
-        console.log('[NeuroScan] Prediction data:', data);
-
-        const prediction = data as PredictionResult;
-        await animateTo(100, 4);
-
-        addLog('Setting results...');
-        setResult(prediction);
-        console.log('[NeuroScan] Result set, moving to results step');
-        setStep("results");
-
-      } catch (err: unknown) {
-        clearTimeout(timeoutId);
-        stopCrawl();
-
-        const e = err instanceof Error ? err : null;
-        addLog(`ERROR: ${e?.message ?? String(err)}`);
-        addLog(`ERROR name: ${e?.name ?? 'unknown'}`);
-        console.error('[NeuroScan] Predict error:', e?.message ?? err);
-
-        if (e?.name === "AbortError") {
-          setError("Request timed out after 2 minutes. The server may be waking up — please try again in 30 seconds.");
-        } else if (!navigator.onLine || (e?.message ?? "").toLowerCase().includes("fetch")) {
-          setError("Cannot connect to the analysis server. Please check your connection and try again.");
-        } else {
-          setError(e?.message ?? "An unexpected error occurred. Please try again.");
-        }
-        setStep("upload");
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error((errData as { detail?: string }).detail ?? `Server error ${response.status}`);
       }
 
+      await animateTo(80, 3);
+
+      addLog('Parsing JSON...');
+      const data = await response.json().catch((err: unknown) => {
+        console.error('[NeuroScan] JSON parse failed:', err);
+        throw new Error('Failed to parse server response. Please try again.');
+      });
+
+      addLog(`Prediction: ${JSON.stringify(data)}`);
+
+      const prediction = data as PredictionResult;
+      await animateTo(100, 4);
+
+      addLog('Setting results...');
+      setResult(prediction);
+      setStep("results");
+
     } catch (err: unknown) {
+      clearTimeout(timeoutId);
       stopCrawl();
+
       const e = err instanceof Error ? err : null;
       addLog(`ERROR: ${e?.message ?? String(err)}`);
       addLog(`ERROR name: ${e?.name ?? 'unknown'}`);
-      const msg = e?.message ?? "Something went wrong. Please try again.";
-      console.error('[NeuroScan] Outer error:', msg);
-      setError(msg);
+
+      if (e?.name === "AbortError") {
+        setError("Request timed out after 2 minutes. The server may be waking up — please try again in 30 seconds.");
+      } else if (!navigator.onLine || (e?.message ?? "").toLowerCase().includes("fetch")) {
+        setError("Cannot connect to the analysis server. Please check your connection and try again.");
+      } else {
+        setError(e?.message ?? "An unexpected error occurred. Please try again.");
+      }
       setStep("upload");
     }
   };
