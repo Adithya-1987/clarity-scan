@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Upload, Brain, X, AlertTriangle,
@@ -74,13 +74,23 @@ export default function UploadAnalyzePage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PredictionResult | null>(null);
 
+  // Ref to hold the crawl interval so it can be cancelled from any code path
+  const crawlIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopCrawl = () => {
+    if (crawlIntervalRef.current !== null) {
+      clearInterval(crawlIntervalRef.current);
+      crawlIntervalRef.current = null;
+    }
+  };
+
   // Wake up backend on page load (Hugging Face Spaces sleeps after inactivity)
   useEffect(() => {
     fetch(`${FASTAPI_URL}/health`).catch(() => {});
+    return () => stopCrawl();
   }, []);
 
   const handleFile = useCallback((f: File) => {
-    // Validate file type and size
     const validTypes = ["image/jpeg", "image/png", "image/jpg"];
     const maxSize = 10 * 1024 * 1024; // 10MB
 
@@ -120,6 +130,18 @@ export default function UploadAnalyzePage() {
       }, 40);
     });
 
+  // Slow crawl from current progress toward ceiling while fetch is in-flight.
+  // Keeps the bar visibly moving so mobile users know the request is pending.
+  const startCrawl = (ceiling: number) => {
+    stopCrawl();
+    crawlIntervalRef.current = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= ceiling) return ceiling;
+        return Math.min(prev + 0.3, ceiling);
+      });
+    }, 300);
+  };
+
   // ─── Main flow: upload → insert → predict → show results ─────────────────
   const startAnalysis = async () => {
     if (!file || !user || !session) {
@@ -153,13 +175,16 @@ export default function UploadAnalyzePage() {
       if (dbError) throw new Error(`DB insert failed: ${dbError.message}`);
       await animateTo(40, 1);
 
-      // Stages 2–3 — FastAPI inference with timeout and error handling
+      // Stage 2 — begin inference; crawl progress so bar keeps moving on mobile
       await animateTo(55, 2);
-      
+      startCrawl(78); // slowly approaches 78% while waiting for the model
+
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90000);
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min for mobile
 
       try {
+        console.log('[NeuroScan] Sending predict request to', FASTAPI_URL);
+
         const response = await fetch(`${FASTAPI_URL}/predict`, {
           method: "POST",
           headers: {
@@ -171,34 +196,54 @@ export default function UploadAnalyzePage() {
         });
 
         clearTimeout(timeoutId);
+        stopCrawl();
+
+        console.log('[NeuroScan] Response status:', response.status);
+        console.log('[NeuroScan] Response ok:', response.ok);
 
         if (!response.ok) {
           const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.detail ?? `Server error ${response.status}`);
+          throw new Error((errData as { detail?: string }).detail ?? `Server error ${response.status}`);
         }
 
         await animateTo(80, 3);
-        const prediction: PredictionResult = await response.json();
+
+        const data = await response.json().catch((err: unknown) => {
+          console.error('[NeuroScan] JSON parse failed:', err);
+          throw new Error('Failed to parse server response. Please try again.');
+        });
+
+        console.log('[NeuroScan] Prediction data:', data);
+
+        const prediction = data as PredictionResult;
         await animateTo(100, 4);
 
         setResult(prediction);
-        setTimeout(() => setStep("results"), 400);
+        console.log('[NeuroScan] Result set, moving to results step');
+        setStep("results");
 
       } catch (err: unknown) {
         clearTimeout(timeoutId);
+        stopCrawl();
+
         const e = err instanceof Error ? err : null;
+        console.error('[NeuroScan] Predict error:', e?.message ?? err);
+
         if (e?.name === "AbortError") {
-          setError("Request timed out. The server may be waking up — please try again in 30 seconds.");
+          setError("Request timed out after 2 minutes. The server may be waking up — please try again in 30 seconds.");
         } else if (!navigator.onLine || (e?.message ?? "").toLowerCase().includes("fetch")) {
           setError("Cannot connect to the analysis server. Please check your connection and try again.");
         } else {
-          setError(e?.message ?? "An unexpected error occurred.");
+          setError(e?.message ?? "An unexpected error occurred. Please try again.");
         }
         setStep("upload");
       }
 
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      stopCrawl();
+      const msg = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+      console.error('[NeuroScan] Outer error:', msg);
+      setError(msg);
       setStep("upload");
     }
   };
