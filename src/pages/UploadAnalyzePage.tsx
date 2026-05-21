@@ -167,10 +167,15 @@ export default function UploadAnalyzePage() {
       await animateTo(15, 0);
       const timestamp = Date.now();
       const filePath = `${user.id}/${timestamp}_${file.name}`;
+      addLog(`Network online: ${navigator.onLine}`);
+      addLog(`File size: ${(file.size / 1024).toFixed(1)}KB`);
       addLog('Uploading to Supabase storage...');
-      const { error: storageError } = await supabase.storage
-        .from("mri-scans")
-        .upload(filePath, file, { upsert: false });
+      const { error: storageError } = await Promise.race([
+        supabase.storage.from("mri-scans").upload(filePath, file, { upsert: false }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Storage upload timed out after 30s — check network or bucket config')), 30000)
+        ),
+      ]);
       if (storageError) throw new Error(`Storage upload failed: ${storageError.message}`);
       addLog(`Upload done: ${filePath}`);
       await animateTo(25, 0);
