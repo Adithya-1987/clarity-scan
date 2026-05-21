@@ -72,11 +72,6 @@ export default function UploadAnalyzePage() {
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PredictionResult | null>(null);
-  const [debugLogs, setDebugLogs] = useState<string[]>([]);
-
-  const addLog = (msg: string) => {
-    setDebugLogs(prev => [...prev, `${new Date().toISOString().slice(11, 19)} ${msg}`]);
-  };
 
   // Ref to hold the crawl interval so it can be cancelled from any code path
   const crawlIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -157,11 +152,6 @@ export default function UploadAnalyzePage() {
     setProgress(0);
     setCurrentStage(0);
     setError(null);
-    setDebugLogs([]);
-
-    addLog('Starting analysis');
-    addLog(`Network online: ${navigator.onLine}`);
-    addLog(`File size: ${(file.size / 1024).toFixed(1)}KB`);
 
     await animateTo(15, 0);
 
@@ -169,7 +159,6 @@ export default function UploadAnalyzePage() {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('user_id', user.id);
-    addLog('FormData built, starting crawl...');
 
     startCrawl(78);
 
@@ -177,8 +166,6 @@ export default function UploadAnalyzePage() {
     const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min for mobile
 
     try {
-      addLog('Calling /predict endpoint...');
-
       const response = await fetch(`${FASTAPI_URL}/predict`, {
         method: 'POST',
         headers: {
@@ -192,9 +179,6 @@ export default function UploadAnalyzePage() {
       clearTimeout(timeoutId);
       stopCrawl();
 
-      addLog(`Response status: ${response.status}`);
-      addLog(`Response ok: ${response.ok}`);
-
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         throw new Error((errData as { detail?: string }).detail ?? `Server error ${response.status}`);
@@ -202,18 +186,14 @@ export default function UploadAnalyzePage() {
 
       await animateTo(80, 3);
 
-      addLog('Parsing JSON...');
       const data = await response.json().catch((err: unknown) => {
         console.error('[NeuroScan] JSON parse failed:', err);
         throw new Error('Failed to parse server response. Please try again.');
       });
 
-      addLog(`Prediction: ${JSON.stringify(data)}`);
-
       const prediction = data as PredictionResult;
       await animateTo(100, 4);
 
-      addLog('Setting results...');
       setResult(prediction);
       setStep("results");
 
@@ -222,8 +202,6 @@ export default function UploadAnalyzePage() {
       stopCrawl();
 
       const e = err instanceof Error ? err : null;
-      addLog(`ERROR: ${e?.message ?? String(err)}`);
-      addLog(`ERROR name: ${e?.name ?? 'unknown'}`);
 
       if (e?.name === "AbortError") {
         setError("Request timed out after 2 minutes. The server may be waking up — please try again in 30 seconds.");
@@ -520,24 +498,6 @@ export default function UploadAnalyzePage() {
         )}
 
       </AnimatePresence>
-
-      {/* DEBUG PANEL — remove after mobile debugging */}
-      <div style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        background: 'rgba(0,0,0,0.9)',
-        color: '#00ff00',
-        fontSize: '11px',
-        padding: '8px',
-        maxHeight: '200px',
-        overflowY: 'auto',
-        zIndex: 9999,
-        fontFamily: 'monospace'
-      }}>
-        {debugLogs.map((log, i) => <div key={i}>{log}</div>)}
-      </div>
     </div>
   );
 }
